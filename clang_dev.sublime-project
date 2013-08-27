@@ -1,0 +1,17 @@
+{
+    "folders":
+    [
+        {
+            "follow_symlinks": true,
+            "path": "."
+        }
+    ],
+
+    "settings":
+    {
+        "sublimeclang_options":
+        [
+            "-I${folder:${project_path:clang_dev.sublime-project}}/include/"
+        ]
+    }
+}
