@@ -9,6 +9,6 @@ int my_func(int my_a, int my_b)
 int main(int argc, char const *argv[])
 {
     s_pwet my_pwet;
-pwet->
+pwet.pwet_
     return 0;
 }

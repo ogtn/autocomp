@@ -86,7 +86,7 @@ void print_completion_result(CXCompletionResult *completion_result,
   clang_disposeString(ks);
 
   print_completion_string(completion_result->CompletionString, file);
-/*  fprintf(file, " (%u)",
+  fprintf(file, " (%u)",
           clang_getCompletionPriority(completion_result->CompletionString));
   switch (clang_getCompletionAvailability(completion_result->CompletionString)){
   case CXAvailability_Available:
@@ -141,7 +141,7 @@ void print_completion_result(CXCompletionResult *completion_result,
   }
   clang_disposeString(BriefComment);
 
-  fprintf(file, "\n");*/
+  fprintf(file, "\n");
 }
 
 
@@ -218,19 +218,25 @@ int main(int argc, char const *argv[])
     {
         int j;
         int nbChunks;
+        CXString cursorKind;
         CXCompletionResult *completionResult = results->Results + i;
         CXCompletionString *completionString = completionResult->CompletionString;
 
+        cursorKind = clang_getCursorKindSpelling(completionResult->CursorKind);
         nbChunks = clang_getNumCompletionChunks(completionString);
+        printf("%s => ", clang_getCString(cursorKind));
+        clang_disposeString(cursorKind);
 
         for(j = 0; j < nbChunks; j++)
         {
             const char *str;
             CXString text;
+            enum CXCompletionChunkKind completionKind;
 
+            completionKind = clang_getCompletionChunkKind(completionString, j);
             text = clang_getCompletionChunkText(completionString, j);
             str = clang_getCString(text);
-            printf("%s ", str ? str : "");
+            printf("%s ", /*clang_getCompletionChunkKindSpelling(completionKind),*/ str ? str : "");
             clang_disposeString(text);
         }
 
