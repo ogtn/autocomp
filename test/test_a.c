@@ -1,14 +1,30 @@
-typedef struct pwet {int pwet_a; float pwet_b;} s_pwet;
+// #include <../abc.h>
 
-int my_func(int my_a, int my_b)
+/// \brief This structure is garbage
+typedef struct pwet
+{
+    int pwet_a;     /// \brief this field is useless
+    float pwet_b;   /// \brief this field is crap
+} s_pwet;
+
+
+/// \brief This function sucks
+int my_func(char my_a, int my_b)
 {
 
     return my_a + my_b;
 }
 
+
 int main(int argc, char const *argv[])
 {
+    char my_char;
+    int my_int;
+
+    my_func(my_char, my_int);
+
     s_pwet my_pwet;
-pwet.pwet_
+    my_pwet.
+
     return 0;
 }

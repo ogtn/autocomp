@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <clang-c/Index.h>
 // #include <clang-c/CXCompilationDatabase.h>
 
@@ -35,113 +36,149 @@ const char *clang_getCompletionChunkKindSpelling(enum CXCompletionChunkKind Kind
 }
 
 
-void print_completion_string(CXCompletionString completion_string, FILE *file)
+void print_completion_contexts(unsigned long long contexts, FILE *file)
 {
-  int I, N;
-
-  N = clang_getNumCompletionChunks(completion_string);
-  printf("\nN = %d\n", N);
-  for (I = 0; I != N; ++I) {
-    CXString text;
-    const char *cstr;
-    enum CXCompletionChunkKind Kind
-      = clang_getCompletionChunkKind(completion_string, I);
-
-    if (Kind == CXCompletionChunk_Optional) {
-      fprintf(file, "{Optional ");
-      print_completion_string(
-                clang_getCompletionChunkCompletionString(completion_string, I),
-                              file);
-      fprintf(file, "}");
-      continue;
-    }
-
-    if (Kind == CXCompletionChunk_VerticalSpace) {
-      fprintf(file, "{VerticalSpace  }");
-      continue;
-    }
-
-    text = clang_getCompletionChunkText(completion_string, I);
-    cstr = clang_getCString(text);
-    fprintf(file, "{%s %s}",
-            clang_getCompletionChunkKindSpelling(Kind),
-            cstr ? cstr : "");
-    clang_disposeString(text);
+  fprintf(file, "Completion contexts:\n");
+  if (contexts == CXCompletionContext_Unknown) {
+    fprintf(file, "Unknown\n");
+    return;
   }
-
+  if (contexts & CXCompletionContext_AnyType) {
+    fprintf(file, "Any type\n");
+  }
+  if (contexts & CXCompletionContext_AnyValue) {
+    fprintf(file, "Any value\n");
+  }
+  if (contexts & CXCompletionContext_ObjCObjectValue) {
+    fprintf(file, "Objective-C object value\n");
+  }
+  if (contexts & CXCompletionContext_ObjCSelectorValue) {
+    fprintf(file, "Objective-C selector value\n");
+  }
+  if (contexts & CXCompletionContext_CXXClassTypeValue) {
+    fprintf(file, "C++ class type value\n");
+  }
+  if (contexts & CXCompletionContext_DotMemberAccess) {
+    fprintf(file, "Dot member access\n");
+  }
+  if (contexts & CXCompletionContext_ArrowMemberAccess) {
+    fprintf(file, "Arrow member access\n");
+  }
+  if (contexts & CXCompletionContext_ObjCPropertyAccess) {
+    fprintf(file, "Objective-C property access\n");
+  }
+  if (contexts & CXCompletionContext_EnumTag) {
+    fprintf(file, "Enum tag\n");
+  }
+  if (contexts & CXCompletionContext_UnionTag) {
+    fprintf(file, "Union tag\n");
+  }
+  if (contexts & CXCompletionContext_StructTag) {
+    fprintf(file, "Struct tag\n");
+  }
+  if (contexts & CXCompletionContext_ClassTag) {
+    fprintf(file, "Class name\n");
+  }
+  if (contexts & CXCompletionContext_Namespace) {
+    fprintf(file, "Namespace or namespace alias\n");
+  }
+  if (contexts & CXCompletionContext_NestedNameSpecifier) {
+    fprintf(file, "Nested name specifier\n");
+  }
+  if (contexts & CXCompletionContext_ObjCInterface) {
+    fprintf(file, "Objective-C interface\n");
+  }
+  if (contexts & CXCompletionContext_ObjCProtocol) {
+    fprintf(file, "Objective-C protocol\n");
+  }
+  if (contexts & CXCompletionContext_ObjCCategory) {
+    fprintf(file, "Objective-C category\n");
+  }
+  if (contexts & CXCompletionContext_ObjCInstanceMessage) {
+    fprintf(file, "Objective-C instance method\n");
+  }
+  if (contexts & CXCompletionContext_ObjCClassMessage) {
+    fprintf(file, "Objective-C class method\n");
+  }
+  if (contexts & CXCompletionContext_ObjCSelectorName) {
+    fprintf(file, "Objective-C selector name\n");
+  }
+  if (contexts & CXCompletionContext_MacroName) {
+    fprintf(file, "Macro name\n");
+  }
+  if (contexts & CXCompletionContext_NaturalLanguage) {
+    fprintf(file, "Natural language\n");
+  }
 }
 
 
-void print_completion_result(CXCompletionResult *completion_result,
-                             CXClientData client_data) {
-  FILE *file = (FILE *)client_data;
-  CXString ks = clang_getCursorKindSpelling(completion_result->CursorKind);
-  unsigned annotationCount;
-  enum CXCursorKind ParentKind;
-  CXString ParentName;
-  CXString BriefComment;
-  const char *BriefCommentCString;
+static void PrintExtent(FILE *out, unsigned begin_line, unsigned begin_column,
+                        unsigned end_line, unsigned end_column) {
+  fprintf(out, "[%d:%d - %d:%d]", begin_line, begin_column,
+          end_line, end_column);
+}
 
-  fprintf(file, "%s:", clang_getCString(ks));
-  clang_disposeString(ks);
 
-  print_completion_string(completion_result->CompletionString, file);
-  fprintf(file, " (%u)",
-          clang_getCompletionPriority(completion_result->CompletionString));
-  switch (clang_getCompletionAvailability(completion_result->CompletionString)){
-  case CXAvailability_Available:
-    break;
+void PrintDiagnostic(CXDiagnostic Diagnostic) {
+  FILE *out = stderr;
+  CXFile file;
+  CXString Msg;
+  unsigned display_opts =
+    CXDiagnostic_DisplaySourceLocation
+    | CXDiagnostic_DisplayColumn
+    | CXDiagnostic_DisplaySourceRanges
+    | CXDiagnostic_DisplayOption
+    | CXDiagnostic_DisplayCategoryId
+    | CXDiagnostic_DisplayCategoryName;
+  unsigned i, num_fixits;
 
-  case CXAvailability_Deprecated:
-    fprintf(file, " (deprecated)");
-    break;
+  if (clang_getDiagnosticSeverity(Diagnostic) == CXDiagnostic_Ignored)
+    return;
 
-  case CXAvailability_NotAvailable:
-    fprintf(file, " (unavailable)");
-    break;
+  Msg = clang_formatDiagnostic(Diagnostic, display_opts);
+  fprintf(stderr, "%s\n", clang_getCString(Msg));
+  clang_disposeString(Msg);
 
-  case CXAvailability_NotAccessible:
-    fprintf(file, " (inaccessible)");
-    break;
-  }
+  clang_getSpellingLocation(clang_getDiagnosticLocation(Diagnostic),
+                            &file, 0, 0, 0);
+  if (!file)
+    return;
 
-  annotationCount = clang_getCompletionNumAnnotations(
-        completion_result->CompletionString);
-  if (annotationCount) {
-    unsigned i;
-    fprintf(file, " (");
-    for (i = 0; i < annotationCount; ++i) {
-      if (i != 0)
-        fprintf(file, ", ");
-      fprintf(file, "\"%s\"",
-              clang_getCString(clang_getCompletionAnnotation(
-                                 completion_result->CompletionString, i)));
+  num_fixits = clang_getDiagnosticNumFixIts(Diagnostic);
+  fprintf(stderr, "Number FIX-ITs = %d\n", num_fixits);
+  for (i = 0; i != num_fixits; ++i) {
+    CXSourceRange range;
+    CXString insertion_text = clang_getDiagnosticFixIt(Diagnostic, i, &range);
+    CXSourceLocation start = clang_getRangeStart(range);
+    CXSourceLocation end = clang_getRangeEnd(range);
+    unsigned start_line, start_column, end_line, end_column;
+    CXFile start_file, end_file;
+    clang_getSpellingLocation(start, &start_file, &start_line,
+                              &start_column, 0);
+    clang_getSpellingLocation(end, &end_file, &end_line, &end_column, 0);
+    if (clang_equalLocations(start, end)) {
+      /* Insertion. */
+      if (start_file == file)
+        fprintf(out, "FIX-IT: Insert \"%s\" at %d:%d\n",
+                clang_getCString(insertion_text), start_line, start_column);
+    } else if (strcmp(clang_getCString(insertion_text), "") == 0) {
+      /* Removal. */
+      if (start_file == file && end_file == file) {
+        fprintf(out, "FIX-IT: Remove ");
+        PrintExtent(out, start_line, start_column, end_line, end_column);
+        fprintf(out, "\n");
+      }
+    } else {
+      /* Replacement. */
+      if (start_file == end_file) {
+        fprintf(out, "FIX-IT: Replace ");
+        PrintExtent(out, start_line, start_column, end_line, end_column);
+        fprintf(out, " with \"%s\"\n", clang_getCString(insertion_text));
+      }
+      break;
     }
-    fprintf(file, ")");
+    clang_disposeString(insertion_text);
   }
-
-  if (!getenv("CINDEXTEST_NO_COMPLETION_PARENTS")) {
-    ParentName = clang_getCompletionParent(completion_result->CompletionString,
-                                           &ParentKind);
-    if (ParentKind != CXCursor_NotImplemented) {
-      CXString KindSpelling = clang_getCursorKindSpelling(ParentKind);
-      fprintf(file, " (parent: %s '%s')",
-              clang_getCString(KindSpelling),
-              clang_getCString(ParentName));
-      clang_disposeString(KindSpelling);
-    }
-    clang_disposeString(ParentName);
-  }
-
-  BriefComment = clang_getCompletionBriefComment(
-                                        completion_result->CompletionString);
-  BriefCommentCString = clang_getCString(BriefComment);
-  if (BriefCommentCString && *BriefCommentCString != '\0') {
-    fprintf(file, "(brief comment: %s)", BriefCommentCString);
-  }
-  clang_disposeString(BriefComment);
-
-  fprintf(file, "\n");
 }
 
 
@@ -151,10 +188,11 @@ int main(int argc, char const *argv[])
     static const char *cmdline = "";
     CXCodeCompleteResults *results = NULL;
     CXTranslationUnit translationUnit = 0;
+    unsigned long long contexts;
     unsigned completionOptions;
     unsigned parsingOptions;
     CXIndex index;
-    unsigned i;
+    unsigned i, n;
     int line, column;
 
     if(argc != 4)
@@ -170,14 +208,13 @@ int main(int argc, char const *argv[])
     column = atoi(argv[3]);
 
     // parsing
-    parsingOptions = CXTranslationUnit_DetailedPreprocessingRecord;
-    parsingOptions |= clang_defaultEditingTranslationUnitOptions();
+    parsingOptions = clang_defaultEditingTranslationUnitOptions();
+    parsingOptions |= CXTranslationUnit_DetailedPreprocessingRecord;
     parsingOptions |= CXTranslationUnit_CacheCompletionResults;
-    parsingOptions &= ~CXTranslationUnit_CacheCompletionResults;
     parsingOptions |= CXTranslationUnit_SkipFunctionBodies;
     parsingOptions |= CXTranslationUnit_IncludeBriefCommentsInCodeCompletion;
 
-    index = clang_createIndex(0, 0);
+    index = clang_createIndex(0, 1);
     translationUnit = clang_parseTranslationUnit(
         index, filename,
         &cmdline,
@@ -200,6 +237,9 @@ int main(int argc, char const *argv[])
 
     // code completion
     completionOptions = clang_defaultCodeCompleteOptions();
+    completionOptions |= CXCodeComplete_IncludeMacros;
+    completionOptions |= CXCodeComplete_IncludeCodePatterns;
+    completionOptions |= CXCodeComplete_IncludeBriefComments;
 
     results = clang_codeCompleteAt(
         translationUnit, filename, line, column,
@@ -216,35 +256,60 @@ int main(int argc, char const *argv[])
 
     for(i = 0; i < results->NumResults; i++)
     {
-        int j;
-        int nbChunks;
-        CXString cursorKind;
         CXCompletionResult *completionResult = results->Results + i;
         CXCompletionString *completionString = completionResult->CompletionString;
 
-        cursorKind = clang_getCursorKindSpelling(completionResult->CursorKind);
-        nbChunks = clang_getNumCompletionChunks(completionString);
-        printf("%s => ", clang_getCString(cursorKind));
-        clang_disposeString(cursorKind);
-
-        for(j = 0; j < nbChunks; j++)
+        if(completionResult->CursorKind != CXCursor_MacroDefinition
+          && completionResult->CursorKind != CXCursor_NotImplemented)
         {
-            const char *str;
-            CXString text;
-            enum CXCompletionChunkKind completionKind;
+          int j;
+          int nbChunks;
+          CXString cursorKind;
+          const char *str;
+          CXString briefComment;
 
-            completionKind = clang_getCompletionChunkKind(completionString, j);
-            text = clang_getCompletionChunkText(completionString, j);
-            str = clang_getCString(text);
-            printf("%s ", /*clang_getCompletionChunkKindSpelling(completionKind),*/ str ? str : "");
-            clang_disposeString(text);
+          cursorKind = clang_getCursorKindSpelling(completionResult->CursorKind);
+          nbChunks = clang_getNumCompletionChunks(completionString);
+          printf("%s => ", clang_getCString(cursorKind));
+          clang_disposeString(cursorKind);
+
+          for(j = 0; j < nbChunks; j++)
+          {
+              CXString text;
+              enum CXCompletionChunkKind completionKind;
+
+              completionKind = clang_getCompletionChunkKind(completionString, j);
+              text = clang_getCompletionChunkText(completionString, j);
+              str = clang_getCString(text);
+              printf("%s ", /*clang_getCompletionChunkKindSpelling(completionKind),*/ str ? str : "");
+              clang_disposeString(text);
+
+          }
+
+          briefComment = clang_getCompletionBriefComment(completionString);
+          str = clang_getCString(briefComment);
+
+          if(str && str[0])
+            printf("// %s", str);
+
+          clang_disposeString(briefComment);
+          printf("\n---\n");
         }
-
-        printf("\n");
-
-        // print_completion_result(completionResult, stdout);
-        // print_completion_string(completionString, stdout);
     }
+
+    puts("=================");
+    n = clang_codeCompleteGetNumDiagnostics(results);
+
+    for(i = 0; i != n; i++)
+    {
+      CXDiagnostic diag = clang_codeCompleteGetDiagnostic(results, i);
+      PrintDiagnostic(diag);
+      clang_disposeDiagnostic(diag);
+    }
+
+    puts("=================");
+    contexts = clang_codeCompleteGetContexts(results);
+    print_completion_contexts(contexts, stdout);
 
     clang_disposeCodeCompleteResults(results);
     clang_disposeTranslationUnit(translationUnit);
