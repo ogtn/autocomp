@@ -24,7 +24,7 @@ int main(int argc, char const *argv[])
     my_func(my_char, my_int);
 
     s_pwet my_pwet;
-    my_pwet.
+    // my_pwet.
 
-    return 0;
+return 0;
 }

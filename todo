@@ -1,0 +1,12 @@
+General:
+ ☐ Display a proper diagnostic for all code issues
+ ☐ Display a fix-it for all code issues
+ ☐ Find declaration
+ ☐ Find definition
+ ☐ Find all references
+ ☐ Refactor type or function
+
+Autocomplete:
+ ☐ Display a proper diagnostic for all code issues
+ ☐ Display a fix-it for all code issues
+ ☐ Add a loop to perform serveral code completion in a row

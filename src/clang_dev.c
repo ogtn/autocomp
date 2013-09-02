@@ -184,8 +184,8 @@ void PrintDiagnostic(CXDiagnostic Diagnostic) {
 
 int main(int argc, char const *argv[])
 {
-    static const char *filename;
-    static const char *cmdline = "";
+    char cmdLine[64];
+    char fileName[64];
     CXCodeCompleteResults *results = NULL;
     CXTranslationUnit translationUnit = 0;
     unsigned long long contexts;
@@ -194,18 +194,15 @@ int main(int argc, char const *argv[])
     CXIndex index;
     unsigned i, n;
     int line, column;
-
-    if(argc != 4)
-    {
-        fprintf(stderr, "Missing arguments!\n");
-        fprintf(stderr, "Usage: ./clang_dev file line column!\n");
-        return EXIT_FAILURE;
-    }
+    // int first = 1;
 
     // arguments
-    filename = argv[1];
-    line = atoi(argv[2]);
-    column = atoi(argv[3]);
+    if(argc < 2)
+    {
+        fprintf(stderr, "Missing arguments!\n");
+
+        return EXIT_FAILURE;
+    }
 
     // parsing
     parsingOptions = clang_defaultEditingTranslationUnitOptions();
@@ -216,9 +213,7 @@ int main(int argc, char const *argv[])
 
     index = clang_createIndex(0, 1);
     translationUnit = clang_parseTranslationUnit(
-        index, filename,
-        &cmdline,
-        0, // cmdline nbargs
+        index, NULL, (const char * const *)argv, argc,
         NULL, // unsaved files
         0, // nb unsaved files
         parsingOptions);
@@ -229,91 +224,217 @@ int main(int argc, char const *argv[])
         return EXIT_FAILURE;
     }
 
-    if(clang_reparseTranslationUnit(translationUnit, 0, 0, clang_defaultReparseOptions(translationUnit)))
+    while(1)
     {
-        fprintf(stderr, "Unable to reparse translation init!\n");
-        return EXIT_FAILURE;
-    }
+        int scanRes;
 
-    // code completion
-    completionOptions = clang_defaultCodeCompleteOptions();
-    completionOptions |= CXCodeComplete_IncludeMacros;
-    completionOptions |= CXCodeComplete_IncludeCodePatterns;
-    completionOptions |= CXCodeComplete_IncludeBriefComments;
+        printf("Choose where to perform autocompletion (file:line:column):\n> ");
 
-    results = clang_codeCompleteAt(
-        translationUnit, filename, line, column,
-        NULL, 0, completionOptions);
+        if(fgets(cmdLine, sizeof cmdLine, stdin) == NULL)
+          break;
 
-    if(results == NULL)
-    {
-        fprintf(stderr, "No completion found!\n");
-        return EXIT_FAILURE;
-    }
+        scanRes = sscanf(cmdLine, "%[^:]:%d:%d", fileName, &line, &column);
+        // printf("%s:%d:%d (%d)", fileName, line, column, scanRes);
 
-    // alnum sort
-    clang_sortCodeCompletionResults(results->Results, results->NumResults);
+        if(scanRes != 3)
+          break;
 
-    for(i = 0; i < results->NumResults; i++)
-    {
-        CXCompletionResult *completionResult = results->Results + i;
-        CXCompletionString *completionString = completionResult->CompletionString;
+        // updating parsing if files have been modified
+        // if(!first)
+        // {
+        //     if(clang_reparseTranslationUnit(translationUnit, 0, 0, clang_defaultReparseOptions(translationUnit)))
+        //     {
+        //         fprintf(stderr, "Unable to reparse translation init!\n");
+        //         return EXIT_FAILURE;
+        //     }
 
-        if(completionResult->CursorKind != CXCursor_MacroDefinition
-          && completionResult->CursorKind != CXCursor_NotImplemented)
+        //     first = 0;
+        // }
+
+        // code completion
+        completionOptions = clang_defaultCodeCompleteOptions();
+        completionOptions |= CXCodeComplete_IncludeMacros;
+        completionOptions |= CXCodeComplete_IncludeCodePatterns;
+        completionOptions |= CXCodeComplete_IncludeBriefComments;
+
+        results = clang_codeCompleteAt(
+            translationUnit, "../test/test_a.c", line, column,
+            NULL, 0, completionOptions);
+
+        if(results == NULL)
         {
-          int j;
-          int nbChunks;
-          CXString cursorKind;
-          const char *str;
-          CXString briefComment;
-
-          cursorKind = clang_getCursorKindSpelling(completionResult->CursorKind);
-          nbChunks = clang_getNumCompletionChunks(completionString);
-          printf("%s => ", clang_getCString(cursorKind));
-          clang_disposeString(cursorKind);
-
-          for(j = 0; j < nbChunks; j++)
-          {
-              CXString text;
-              enum CXCompletionChunkKind completionKind;
-
-              completionKind = clang_getCompletionChunkKind(completionString, j);
-              text = clang_getCompletionChunkText(completionString, j);
-              str = clang_getCString(text);
-              printf("%s ", /*clang_getCompletionChunkKindSpelling(completionKind),*/ str ? str : "");
-              clang_disposeString(text);
-
-          }
-
-          briefComment = clang_getCompletionBriefComment(completionString);
-          str = clang_getCString(briefComment);
-
-          if(str && str[0])
-            printf("// %s", str);
-
-          clang_disposeString(briefComment);
-          printf("\n---\n");
+            fprintf(stderr, "No completion found!\n");
+            return EXIT_FAILURE;
         }
+
+        // alnum sort
+        clang_sortCodeCompletionResults(results->Results, results->NumResults);
+
+        for(i = 0; i < results->NumResults; i++)
+        {
+            CXCompletionResult *completionResult = results->Results + i;
+            CXCompletionString *completionString = completionResult->CompletionString;
+
+            if(completionResult->CursorKind != CXCursor_MacroDefinition
+              && completionResult->CursorKind != CXCursor_NotImplemented)
+            {
+              int j;
+              int nbChunks;
+              CXString cursorKind;
+              const char *str;
+              CXString briefComment;
+
+              cursorKind = clang_getCursorKindSpelling(completionResult->CursorKind);
+              nbChunks = clang_getNumCompletionChunks(completionString);
+              printf("%s => ", clang_getCString(cursorKind));
+              clang_disposeString(cursorKind);
+
+              for(j = 0; j < nbChunks; j++)
+              {
+                  CXString text;
+                  enum CXCompletionChunkKind completionKind;
+
+                  completionKind = clang_getCompletionChunkKind(completionString, j);
+                  text = clang_getCompletionChunkText(completionString, j);
+                  str = clang_getCString(text);
+                  printf("%s ", /*clang_getCompletionChunkKindSpelling(completionKind),*/ str ? str : "");
+                  clang_disposeString(text);
+
+              }
+
+              briefComment = clang_getCompletionBriefComment(completionString);
+              str = clang_getCString(briefComment);
+
+              if(str && str[0])
+                printf("// %s", str);
+
+              clang_disposeString(briefComment);
+              printf("\n");
+            }
+        }
+
+        puts("=================");
+        n = clang_codeCompleteGetNumDiagnostics(results);
+
+        for(i = 0; i != n; i++)
+        {
+          CXDiagnostic diag = clang_codeCompleteGetDiagnostic(results, i);
+          PrintDiagnostic(diag);
+          clang_disposeDiagnostic(diag);
+        }
+
+        // completion context
+        puts("=================");
+        contexts = clang_codeCompleteGetContexts(results);
+        print_completion_contexts(contexts, stdout);
+
+        // cursors
+        puts("=================");
+        CXFile file = clang_getFile(translationUnit, "../test/test_a.c");
+        CXSourceLocation loc = clang_getLocation(translationUnit, file, line, column);
+        CXCursor cursor = clang_getCursor(translationUnit, loc);
+        CXSourceRange range = clang_getCursorExtent(cursor);
+        CXToken *tokens;
+        unsigned numTokens;
+        clang_tokenize(translationUnit, range, &tokens, &numTokens);
+
+        for(i = 0; i < numTokens; i++)
+        {
+            CXString string;
+            const char *kind;
+            CXTokenKind tokenKind = clang_getTokenKind(tokens[i]);
+
+            switch(tokenKind)
+            {
+                case CXToken_Punctuation:
+                    kind = "Punctuation";
+                    break;
+                case CXToken_Keyword:
+                    kind = "Keyword";
+                    break;
+                case CXToken_Identifier:
+                    kind = "Identifier";
+                    break;
+                case CXToken_Literal:
+                    kind = "Literal";
+                    break;
+                case CXToken_Comment:
+                    kind = "Comment";
+                    break;
+            }
+
+            string = clang_getTokenSpelling(translationUnit, tokens[i]);
+            printf("token \"%s\" (%s)\n", clang_getCString(string), kind);
+            clang_disposeString(string);
+        }
+
+        clang_disposeTokens(translationUnit, tokens, numTokens);
+        clang_disposeCodeCompleteResults(results);
+        printf("-------------\n\n");
     }
 
-    puts("=================");
-    n = clang_codeCompleteGetNumDiagnostics(results);
-
-    for(i = 0; i != n; i++)
-    {
-      CXDiagnostic diag = clang_codeCompleteGetDiagnostic(results, i);
-      PrintDiagnostic(diag);
-      clang_disposeDiagnostic(diag);
-    }
-
-    puts("=================");
-    contexts = clang_codeCompleteGetContexts(results);
-    print_completion_contexts(contexts, stdout);
-
-    clang_disposeCodeCompleteResults(results);
     clang_disposeTranslationUnit(translationUnit);
     clang_disposeIndex(index);
 
     return EXIT_SUCCESS;
 }
+
+
+#if 0
+int main(int argc, char *argv[])
+{
+  CXString string;
+  CXIndex index = clang_createIndex(0, 0);
+  CXTranslationUnit tu = clang_parseTranslationUnit(index, 0, (const char * const *)argv, argc, 0, 0, CXTranslationUnit_None);
+
+  for(unsigned i = 0, n = clang_getNumDiagnostics(tu); i != n; i++)
+  {
+    CXDiagnostic diag = clang_getDiagnostic(tu, i);
+
+    printf("Diagnostic:\n");
+    string = clang_formatDiagnostic(diag, clang_defaultDiagnosticDisplayOptions());
+    fprintf(stderr, "%s\n", clang_getCString(string));
+    clang_disposeString(string);
+
+    // core diagnostic information
+    printf("Core diagnostic information:\n");
+    string = clang_getDiagnosticSpelling(diag);
+    fprintf(stderr, "%s\n", clang_getCString(string));
+    clang_disposeString(string);
+    // clang_getDiagnosticSeverity(diag);
+    // clang_getDiagnosticLocation(diag);
+
+    // fix it
+    printf("Fixit:\n");
+    for(unsigned j = 0, nfixit = clang_getDiagnosticNumFixIts(diag); j < nfixit; j++)
+    {
+      CXSourceRange range;
+      string = clang_getDiagnosticFixIt(diag, j, &range);
+      fprintf(stderr, "%s\n", clang_getCString(string));
+      clang_disposeString(string);
+    }
+
+    printf("\n");
+  }
+
+  // cursors
+  unsigned line = 13;
+  unsigned column = 7;
+  CXFile file = clang_getFile(tu, "test_a.c");
+  CXSourceLocation loc = clang_getLocation(tu, file, line, column);
+  CXCursor cursor = clang_getCursor(tu, loc);
+  printf("Unified Symbol Resolution:\n");
+  string = clang_getCursorUSR(cursor);
+  fprintf(stderr, "%s\n", clang_getCString(string));
+  clang_disposeString(string);
+
+  // syntax highlighting
+  // clang_tokenize(...);
+  // clang_annotateTokens(...);
+
+  clang_disposeTranslationUnit(tu);
+  clang_disposeIndex(index);
+
+  return 0;
+}
+#endif
