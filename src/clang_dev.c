@@ -5,6 +5,25 @@
 // #include <clang-c/CXCompilationDatabase.h>
 
 
+#define COLOR_NC "\033[0m"
+#define COLOR_WHITE "\033[1;37m"
+#define COLOR_BLACK "\033[0;30m"
+#define COLOR_BLUE "\033[0;34m"
+#define COLOR_LIGHT_BLUE "\033[1;34m"
+#define COLOR_GREEN "\033[0;32m"
+#define COLOR_LIGHT_GREEN "\033[1;32m"
+#define COLOR_CYAN "\033[0;36m"
+#define COLOR_LIGHT_CYAN "\033[1;36m"
+#define COLOR_RED "\033[0;31m"
+#define COLOR_LIGHT_RED "\033[1;31m"
+#define COLOR_PURPLE "\033[0;35m"
+#define COLOR_LIGHT_PURPLE "\033[1;35m"
+#define COLOR_BROWN "\033[0;33m"
+#define COLOR_YELLOW "\033[1;33m"
+#define COLOR_GRAY "\033[0;30m"
+#define COLOR_LIGHT_GRAY "\033[0;37m"
+
+
 const char *clang_getCompletionChunkKindSpelling(enum CXCompletionChunkKind Kind)
 {
     switch (Kind)
@@ -211,6 +230,7 @@ int main(int argc, char const *argv[])
     parsingOptions |= CXTranslationUnit_SkipFunctionBodies;
     parsingOptions |= CXTranslationUnit_IncludeBriefCommentsInCodeCompletion;
 
+    strcpy(fileName, argv[1]);
     index = clang_createIndex(0, 1);
     translationUnit = clang_parseTranslationUnit(
         index, NULL, (const char * const *)argv, argc,
@@ -228,15 +248,15 @@ int main(int argc, char const *argv[])
     {
         int scanRes;
 
-        printf("Choose where to perform autocompletion (file:line:column):\n> ");
+        printf("Choose where to perform autocompletion (line column):\n> ");
 
         if(fgets(cmdLine, sizeof cmdLine, stdin) == NULL)
           break;
 
-        scanRes = sscanf(cmdLine, "%[^:]:%d:%d", fileName, &line, &column);
+        scanRes = sscanf(cmdLine, "%d %d", &line, &column);
         // printf("%s:%d:%d (%d)", fileName, line, column, scanRes);
 
-        if(scanRes != 3)
+        if(scanRes != 2)
           break;
 
         // updating parsing if files have been modified
@@ -258,7 +278,7 @@ int main(int argc, char const *argv[])
         completionOptions |= CXCodeComplete_IncludeBriefComments;
 
         results = clang_codeCompleteAt(
-            translationUnit, "../test/test_a.c", line, column,
+            translationUnit, fileName, line, column,
             NULL, 0, completionOptions);
 
         if(results == NULL)
@@ -327,49 +347,86 @@ int main(int argc, char const *argv[])
         puts("=================");
         contexts = clang_codeCompleteGetContexts(results);
         print_completion_contexts(contexts, stdout);
+        clang_disposeCodeCompleteResults(results);
 
         // cursors
         puts("=================");
-        CXFile file = clang_getFile(translationUnit, "../test/test_a.c");
-        CXSourceLocation loc = clang_getLocation(translationUnit, file, line, column);
-        CXCursor cursor = clang_getCursor(translationUnit, loc);
-        CXSourceRange range = clang_getCursorExtent(cursor);
+        CXFile file = clang_getFile(translationUnit,fileName);
+
+        FILE *cfile = fopen(fileName, "r");
+        fseek(cfile, 0, SEEK_END);
+        int code_len = ftell(cfile);
+        rewind(cfile);
+        char *code = malloc(code_len + 1);
+        fread(code, code_len, 1, cfile);
+        code[code_len] = '\0';
+
+        CXSourceLocation loc_start = clang_getLocation(translationUnit, file, 1, 1);
+        CXSourceLocation loc_end = clang_getLocationForOffset(translationUnit, file, code_len);
+        CXSourceRange range = clang_getRange(loc_start, loc_end);
         CXToken *tokens;
         unsigned numTokens;
         clang_tokenize(translationUnit, range, &tokens, &numTokens);
 
+        unsigned currentPos = 0;
+        unsigned currentLine = 1;
+
         for(i = 0; i < numTokens; i++)
         {
             CXString string;
-            const char *kind;
             CXTokenKind tokenKind = clang_getTokenKind(tokens[i]);
-
-            switch(tokenKind)
-            {
-                case CXToken_Punctuation:
-                    kind = "Punctuation";
-                    break;
-                case CXToken_Keyword:
-                    kind = "Keyword";
-                    break;
-                case CXToken_Identifier:
-                    kind = "Identifier";
-                    break;
-                case CXToken_Literal:
-                    kind = "Literal";
-                    break;
-                case CXToken_Comment:
-                    kind = "Comment";
-                    break;
-            }
+            CXSourceRange tokenRange = clang_getTokenExtent(translationUnit, tokens[i]);
+            CXSourceLocation tokenStart = clang_getRangeStart(tokenRange);
+            CXSourceLocation tokenEnd = clang_getRangeEnd(tokenRange);
+            unsigned startOffset, endOffset;
+            clang_getSpellingLocation(tokenStart, file, NULL, NULL, &startOffset);
+            clang_getSpellingLocation(tokenEnd, file, NULL, NULL, &endOffset);
 
             string = clang_getTokenSpelling(translationUnit, tokens[i]);
-            printf("token \"%s\" (%s)\n", clang_getCString(string), kind);
+            // printf("token \"%s\" (%s) => [%d;%d]\n", clang_getCString(string), kind, startOffset, endOffset);
             clang_disposeString(string);
+
+            while(currentPos < endOffset)
+            {
+                if(currentPos)
+                    putchar(code[currentPos]);
+
+                if(currentPos == 0 || code[currentPos] == '\n')
+                {
+                    printf(COLOR_NC);
+                    printf("%4d: ", currentLine);
+
+                    switch(tokenKind)
+                    {
+                        case CXToken_Punctuation:
+                            printf(COLOR_WHITE);
+                            break;
+                        case CXToken_Keyword:
+                            printf(COLOR_BLUE);
+                            break;
+                        case CXToken_Identifier:
+                            printf(COLOR_WHITE);
+                            break;
+                        case CXToken_Literal:
+                            printf(COLOR_BROWN);
+                            break;
+                        case CXToken_Comment:
+                            printf(COLOR_GREEN);
+                            break;
+                    }
+
+                    if(!currentPos)
+                      putchar(code[currentPos]);
+
+                    currentLine++;
+                }
+
+                currentPos++;
+            }
         }
 
+        printf("\n"COLOR_NC);
         clang_disposeTokens(translationUnit, tokens, numTokens);
-        clang_disposeCodeCompleteResults(results);
         printf("-------------\n\n");
     }
 
