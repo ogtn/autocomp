@@ -21,11 +21,16 @@ int main(int argc, char const *argv[])
 {
     char my_char;
     int my_int;
-
-    my_func(my_char, my_int);
-
     s_pwet my_pwet;
-    // my_pwet.
+
+    for(my_int = 0; my_int < 30; my_int++)
+        my_func(my_char, my_int);
+
+    while(my_int--)
+    {
+        my_pwet.pwet_a my_int;
+        my_pwet.pwet_b my_int * 0.1F;
+    }
 
 	return 0;
 }

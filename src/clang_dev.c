@@ -201,6 +201,33 @@ void PrintDiagnostic(CXDiagnostic Diagnostic) {
 }
 
 
+enum CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
+{
+    CXFile file = client_data;
+    CXString cursorString, cursorKindString, USRString;
+    CXSourceRange cursorRange = clang_getCursorExtent(cursor);
+    CXSourceLocation cursorStart = clang_getRangeStart(cursorRange);
+    CXSourceLocation cursorEnd = clang_getRangeEnd(cursorRange);
+    unsigned startOffsetCursor, endOffsetCursor;
+    unsigned startLine, endLine;
+    unsigned startCol, endCol;
+    clang_getSpellingLocation(cursorStart, file, &startLine, &startCol, &startOffsetCursor);
+    clang_getSpellingLocation(cursorEnd, file, &endLine, &endCol, &endOffsetCursor);
+    cursorString = clang_getCursorSpelling(cursor);
+    enum CXCursorKind cursorKind = clang_getCursorKind(cursor);
+    cursorKindString = clang_getCursorKindSpelling(cursorKind);
+    USRString = clang_getCursorUSR(cursor);
+    printf("cursor: \"%s\" (%d:%d)=>(%d:%d) %s\tUSR: \"%s\" \n",
+        clang_getCString(cursorString), startLine, startCol, endLine, endCol,
+        clang_getCString(cursorKindString), clang_getCString(USRString));
+    clang_disposeString(cursorString);
+    clang_disposeString(cursorKindString);
+    clang_disposeString(USRString);
+
+    return CXChildVisit_Recurse;
+}
+
+
 int main(int argc, char const *argv[])
 {
     char cmdLine[64];
@@ -352,6 +379,8 @@ int main(int argc, char const *argv[])
         // cursors
         puts("=================");
         CXFile file = clang_getFile(translationUnit,fileName);
+        CXCursor cursor = clang_getTranslationUnitCursor(translationUnit);
+        // clang_visitChildren(cursor, visitor, file);
 
         FILE *cfile = fopen(fileName, "r");
         fseek(cfile, 0, SEEK_END);
@@ -367,6 +396,8 @@ int main(int argc, char const *argv[])
         CXToken *tokens;
         unsigned numTokens;
         clang_tokenize(translationUnit, range, &tokens, &numTokens);
+        CXCursor *cursors = malloc(sizeof(CXCursor) * numTokens);
+        clang_annotateTokens(translationUnit, tokens, numTokens, cursors);
 
         unsigned currentPos = 0;
         unsigned currentLine = 1;
@@ -374,19 +405,40 @@ int main(int argc, char const *argv[])
 
         for(i = 0; i < numTokens; i++)
         {
-            CXString string;
+            CXString tokenString, cursorString, cursorKindString;
             CXTokenKind tokenKind = clang_getTokenKind(tokens[i]);
+            enum CXCursorKind cursorKind = clang_getCursorKind(cursors[i]);
             CXSourceRange tokenRange = clang_getTokenExtent(translationUnit, tokens[i]);
+            CXSourceRange cursorRange = clang_getCursorExtent(cursors[i]);
             CXSourceLocation tokenStart = clang_getRangeStart(tokenRange);
             CXSourceLocation tokenEnd = clang_getRangeEnd(tokenRange);
-            unsigned startOffset, endOffset;
-            clang_getSpellingLocation(tokenStart, file, NULL, NULL, &startOffset);
-            clang_getSpellingLocation(tokenEnd, file, NULL, NULL, &endOffset);
+            CXSourceLocation cursorStart = clang_getRangeStart(cursorRange);
+            CXSourceLocation cursorEnd = clang_getRangeEnd(cursorRange);
+            unsigned startOffsetToken, endOffsetToken;
+            clang_getSpellingLocation(tokenStart, file, NULL, NULL, &startOffsetToken);
+            clang_getSpellingLocation(tokenEnd, file, NULL, NULL, &endOffsetToken);
+            unsigned startOffsetCursor, endOffsetCursor;
+            clang_getSpellingLocation(cursorStart, file, NULL, NULL, &startOffsetCursor);
+            clang_getSpellingLocation(cursorEnd, file, NULL, NULL, &endOffsetCursor);
 
-            string = clang_getTokenSpelling(translationUnit, tokens[i]);
-            // printf("token \"%s\" => [%d;%d]\n", clang_getCString(string), startOffset, endOffset);
-            clang_disposeString(string);
+            tokenString = clang_getTokenSpelling(translationUnit, tokens[i]);
+            cursorString = clang_getCursorSpelling(cursors[i]);
+            cursorKindString = clang_getCursorKindSpelling(cursorKind);
 
+
+            printf("token: \"%s\" => [%d;%d]\n", clang_getCString(tokenString), startOffsetToken, endOffsetToken);
+
+            // if(cursorKind == CXCursor_VarDecl)
+              // puts("VARIABLE");
+
+            if(!clang_isInvalid(cursorKind))
+                printf("cursor: \"%s\" => [%d;%d] => %s\n", clang_getCString(cursorString), startOffsetCursor, endOffsetCursor, clang_getCString(cursorKindString));
+
+
+            clang_disposeString(tokenString);
+            clang_disposeString(cursorString);
+            clang_disposeString(cursorKindString);
+/*
             char *currentColor;
             switch(tokenKind)
             {
@@ -397,7 +449,10 @@ int main(int argc, char const *argv[])
                 case CXToken_Comment:     currentColor = COLOR_GREEN; break;
             }
 
-            while(currentPos < endOffset)
+            if(cursorKind == CXCursor_ReturnStmt)
+                currentColor = COLOR_CYAN;
+
+            while(currentPos < endOffsetToken)
             {
                 if(code[currentPos] == '\n')
                     printf("\n%s%04d:", COLOR_NC, currentLine++);
@@ -405,11 +460,12 @@ int main(int argc, char const *argv[])
                     printf("%s%c", currentColor, code[currentPos]);
 
                 currentPos++;
-            }
+            }*/
         }
 
         printf("\n"COLOR_NC);
         clang_disposeTokens(translationUnit, tokens, numTokens);
+        free(cursors);
         printf("-------------\n\n");
     }
 
