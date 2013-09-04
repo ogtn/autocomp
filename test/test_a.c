@@ -11,6 +11,7 @@ typedef struct pwet
 /// \brief This function sucks
 int my_func(char my_a, int my_b)
 {
+    printf("%s %d %f", "This is a string literal", 42, 66.6F);
 
     return my_a + my_b;
 }
@@ -26,5 +27,5 @@ int main(int argc, char const *argv[])
     s_pwet my_pwet;
     // my_pwet.
 
-return 0;
+	return 0;
 }

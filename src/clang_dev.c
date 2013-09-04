@@ -370,6 +370,7 @@ int main(int argc, char const *argv[])
 
         unsigned currentPos = 0;
         unsigned currentLine = 1;
+        printf("\n%s%04d:", COLOR_NC, currentLine++);
 
         for(i = 0; i < numTokens; i++)
         {
@@ -383,43 +384,25 @@ int main(int argc, char const *argv[])
             clang_getSpellingLocation(tokenEnd, file, NULL, NULL, &endOffset);
 
             string = clang_getTokenSpelling(translationUnit, tokens[i]);
-            // printf("token \"%s\" (%s) => [%d;%d]\n", clang_getCString(string), kind, startOffset, endOffset);
+            // printf("token \"%s\" => [%d;%d]\n", clang_getCString(string), startOffset, endOffset);
             clang_disposeString(string);
+
+            char *currentColor;
+            switch(tokenKind)
+            {
+                case CXToken_Punctuation: currentColor = COLOR_WHITE; break;
+                case CXToken_Keyword:     currentColor = COLOR_RED;   break;
+                case CXToken_Identifier:  currentColor = COLOR_WHITE; break;
+                case CXToken_Literal:     currentColor = COLOR_BROWN; break;
+                case CXToken_Comment:     currentColor = COLOR_GREEN; break;
+            }
 
             while(currentPos < endOffset)
             {
-                if(currentPos)
-                    putchar(code[currentPos]);
-
-                if(currentPos == 0 || code[currentPos] == '\n')
-                {
-                    printf(COLOR_NC);
-                    printf("%4d: ", currentLine);
-
-                    switch(tokenKind)
-                    {
-                        case CXToken_Punctuation:
-                            printf(COLOR_WHITE);
-                            break;
-                        case CXToken_Keyword:
-                            printf(COLOR_BLUE);
-                            break;
-                        case CXToken_Identifier:
-                            printf(COLOR_WHITE);
-                            break;
-                        case CXToken_Literal:
-                            printf(COLOR_BROWN);
-                            break;
-                        case CXToken_Comment:
-                            printf(COLOR_GREEN);
-                            break;
-                    }
-
-                    if(!currentPos)
-                      putchar(code[currentPos]);
-
-                    currentLine++;
-                }
+                if(code[currentPos] == '\n')
+                    printf("\n%s%04d:", COLOR_NC, currentLine++);
+                else
+                    printf("%s%c", currentColor, code[currentPos]);
 
                 currentPos++;
             }
