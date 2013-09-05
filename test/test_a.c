@@ -1,3 +1,4 @@
+#include <stdio.h>
 // #include <../abc.h>
 
 /// \brief This structure is garbage
@@ -28,8 +29,8 @@ int main(int argc, char const *argv[])
 
     while(my_int--)
     {
-        my_pwet.pwet_a my_int;
-        my_pwet.pwet_b my_int * 0.1F;
+        my_pwet.pwet_a = my_int;
+        my_pwet.pwet_b = my_int * 0.1F;
     }
 
 	return 0;

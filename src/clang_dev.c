@@ -254,7 +254,7 @@ int main(int argc, char const *argv[])
     parsingOptions = clang_defaultEditingTranslationUnitOptions();
     parsingOptions |= CXTranslationUnit_DetailedPreprocessingRecord;
     parsingOptions |= CXTranslationUnit_CacheCompletionResults;
-    parsingOptions |= CXTranslationUnit_SkipFunctionBodies;
+    // parsingOptions |= CXTranslationUnit_SkipFunctionBodies;
     parsingOptions |= CXTranslationUnit_IncludeBriefCommentsInCodeCompletion;
 
     strcpy(fileName, argv[1]);
@@ -426,31 +426,75 @@ int main(int argc, char const *argv[])
             cursorKindString = clang_getCursorKindSpelling(cursorKind);
 
 
-            printf("token: \"%s\" => [%d;%d]\n", clang_getCString(tokenString), startOffsetToken, endOffsetToken);
-
-            // if(cursorKind == CXCursor_VarDecl)
-              // puts("VARIABLE");
+            /*printf("token: \"%s\" => [%d;%d]\n", clang_getCString(tokenString), startOffsetToken, endOffsetToken);
 
             if(!clang_isInvalid(cursorKind))
-                printf("cursor: \"%s\" => [%d;%d] => %s\n", clang_getCString(cursorString), startOffsetCursor, endOffsetCursor, clang_getCString(cursorKindString));
-
+                printf("cursor: \"%s\" => [%d;%d] => %s\n\n", clang_getCString(cursorString), startOffsetCursor, endOffsetCursor, clang_getCString(cursorKindString));
+            else
+                printf("\n");*/
 
             clang_disposeString(tokenString);
             clang_disposeString(cursorString);
             clang_disposeString(cursorKindString);
-/*
+
             char *currentColor;
             switch(tokenKind)
             {
                 case CXToken_Punctuation: currentColor = COLOR_WHITE; break;
-                case CXToken_Keyword:     currentColor = COLOR_RED;   break;
-                case CXToken_Identifier:  currentColor = COLOR_WHITE; break;
-                case CXToken_Literal:     currentColor = COLOR_BROWN; break;
                 case CXToken_Comment:     currentColor = COLOR_GREEN; break;
-            }
+                case CXToken_Keyword:     currentColor = COLOR_LIGHT_BLUE;   break;
+                // case CXToken_Identifier:  currentColor = COLOR_WHITE; break;
+                // case CXToken_Literal:     currentColor = COLOR_BROWN; break;
+                default:
+                    switch(cursorKind)
+                    {
+                        // control statements
+                        case CXCursor_CaseStmt:
+                        case CXCursor_SwitchStmt:
+                        case CXCursor_WhileStmt:
+                        case CXCursor_DoStmt:
+                        case CXCursor_ForStmt:
+                        case CXCursor_GotoStmt:
+                        case CXCursor_ContinueStmt:
+                        case CXCursor_BreakStmt:
+                        case CXCursor_ReturnStmt: currentColor = COLOR_LIGHT_BLUE;        break;
 
-            if(cursorKind == CXCursor_ReturnStmt)
-                currentColor = COLOR_CYAN;
+                        // num literals
+                        case CXCursor_IntegerLiteral:
+                        case CXCursor_FloatingLiteral:
+                        case CXCursor_ImaginaryLiteral: currentColor = COLOR_PURPLE; break;
+
+                        // string literals
+                        case CXCursor_StringLiteral:
+                        case CXCursor_ObjCStringLiteral:
+                        case CXCursor_CharacterLiteral: currentColor = COLOR_BROWN; break;
+                        
+                        // what?
+                        // case CXCursor_CompoundLiteralExpr:
+                        // case CXCursor_CXXNullPtrLiteralExpr:
+                        // case CXCursor_CXXBoolLiteralExpr:
+                        // case CXCursor_ObjCBoolLiteralExpr: currentColor = COLOR_LIGHT_BLUE; break;
+
+                        // function decl
+                        case CXCursor_FunctionDecl: currentColor = COLOR_LIGHT_GREEN; break;
+
+                        // symbol ref: process variables and function in a separate manner
+                        case CXCursor_DeclRefExpr: currentColor = COLOR_CYAN; break;
+
+                        // preprocessing
+                        // case CXCursor_MacroExpansion:
+                        // case CXCursor_LastPreprocessing:
+                        // case CXCursor_FirstPreprocessing:
+                        case CXCursor_PreprocessingDirective:
+                        case CXCursor_MacroDefinition:
+                        case CXCursor_MacroInstantiation:
+                        case CXCursor_InclusionDirective: currentColor = COLOR_YELLOW; break;
+
+                        // user defined types
+                        case CXCursor_TypeRef:    currentColor = COLOR_LIGHT_CYAN;  break;
+                        default:                  currentColor = COLOR_WHITE;       break;
+                    }
+            }
 
             while(currentPos < endOffsetToken)
             {
@@ -460,7 +504,7 @@ int main(int argc, char const *argv[])
                     printf("%s%c", currentColor, code[currentPos]);
 
                 currentPos++;
-            }*/
+            }
         }
 
         printf("\n"COLOR_NC);
