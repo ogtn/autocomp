@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <clang-c/Index.h>
-// #include <clang-c/CXCompilationDatabase.h>
 
 
 #define COLOR_NC "\033[0m"
@@ -228,6 +228,29 @@ enum CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData c
 }
 
 
+const char *cursorKindSpelling(enum CXTokenKind tokenKind)
+{
+    switch(tokenKind)
+    {
+        case CXToken_Punctuation:   return "punctuation";
+        case CXToken_Comment:       return "comment";
+        case CXToken_Keyword:       return "keyword";
+        case CXToken_Identifier:    return "identifier";
+        case CXToken_Literal:       return "literal";
+        default:                    return "unknown token kind";
+    }
+}
+
+
+char nextNonBlank(const char *str)
+{
+    while(*str && isspace(*str))
+        str++;
+
+    return *str;
+}
+
+
 int main(int argc, char const *argv[])
 {
     char cmdLine[64];
@@ -274,7 +297,7 @@ int main(int argc, char const *argv[])
     while(1)
     {
         int scanRes;
-
+#if 0
         printf("Choose where to perform autocompletion (line column):\n> ");
 
         if(fgets(cmdLine, sizeof cmdLine, stdin) == NULL)
@@ -375,7 +398,7 @@ int main(int argc, char const *argv[])
         contexts = clang_codeCompleteGetContexts(results);
         print_completion_contexts(contexts, stdout);
         clang_disposeCodeCompleteResults(results);
-
+#endif
         // cursors
         puts("=================");
         CXFile file = clang_getFile(translationUnit,fileName);
@@ -425,23 +448,31 @@ int main(int argc, char const *argv[])
             cursorString = clang_getCursorSpelling(cursors[i]);
             cursorKindString = clang_getCursorKindSpelling(cursorKind);
 
-
-            /*printf("token: \"%s\" => [%d;%d]\n", clang_getCString(tokenString), startOffsetToken, endOffsetToken);
+#if 1
+            printf("\ntoken: \"%s\" => [%d;%d] => %s(%d)\n", clang_getCString(tokenString),
+                startOffsetToken, endOffsetToken, cursorKindSpelling(tokenKind), tokenKind);
 
             if(!clang_isInvalid(cursorKind))
-                printf("cursor: \"%s\" => [%d;%d] => %s\n\n", clang_getCString(cursorString), startOffsetCursor, endOffsetCursor, clang_getCString(cursorKindString));
-            else
-                printf("\n");*/
+                printf("cursor: \"%s\" => [%d;%d] => %s(%d)\n", clang_getCString(cursorString),
+                    startOffsetCursor, endOffsetCursor, clang_getCString(cursorKindString), cursorKind);
+#endif
 
             clang_disposeString(tokenString);
             clang_disposeString(cursorString);
             clang_disposeString(cursorKindString);
 
             char *currentColor;
+            char nextChar = nextNonBlank(code + currentPos);
+
             switch(tokenKind)
             {
-                case CXToken_Punctuation: currentColor = COLOR_WHITE; break;
-                case CXToken_Comment:     currentColor = COLOR_GREEN; break;
+                case CXToken_Punctuation:
+                    if(cursorKind == CXCursor_InclusionDirective && strchr("#<>/.\\", nextChar))
+                        currentColor = COLOR_LIGHT_PURPLE;
+                    else
+                        currentColor = COLOR_WHITE;
+                    break;
+                case CXToken_Comment:     currentColor = COLOR_LIGHT_GRAY; break;
                 case CXToken_Keyword:     currentColor = COLOR_LIGHT_BLUE;   break;
                 // case CXToken_Identifier:  currentColor = COLOR_WHITE; break;
                 // case CXToken_Literal:     currentColor = COLOR_BROWN; break;
@@ -457,7 +488,7 @@ int main(int argc, char const *argv[])
                         case CXCursor_GotoStmt:
                         case CXCursor_ContinueStmt:
                         case CXCursor_BreakStmt:
-                        case CXCursor_ReturnStmt: currentColor = COLOR_LIGHT_BLUE;        break;
+                        case CXCursor_ReturnStmt: currentColor = COLOR_LIGHT_RED;        break;
 
                         // num literals
                         case CXCursor_IntegerLiteral:
@@ -468,7 +499,7 @@ int main(int argc, char const *argv[])
                         case CXCursor_StringLiteral:
                         case CXCursor_ObjCStringLiteral:
                         case CXCursor_CharacterLiteral: currentColor = COLOR_BROWN; break;
-                        
+
                         // what?
                         // case CXCursor_CompoundLiteralExpr:
                         // case CXCursor_CXXNullPtrLiteralExpr:
@@ -482,14 +513,15 @@ int main(int argc, char const *argv[])
                         case CXCursor_DeclRefExpr: currentColor = COLOR_CYAN; break;
 
                         // preprocessing
-                        // case CXCursor_MacroExpansion:
-                        // case CXCursor_LastPreprocessing:
-                        // case CXCursor_FirstPreprocessing:
                         case CXCursor_PreprocessingDirective:
                         case CXCursor_MacroDefinition:
                         case CXCursor_MacroInstantiation:
-                        case CXCursor_InclusionDirective: currentColor = COLOR_YELLOW; break;
-
+                        case CXCursor_InclusionDirective:
+                            if(tokenKind == CXToken_Identifier)
+                                currentColor = COLOR_PURPLE;
+                            else
+                                currentColor = COLOR_YELLOW;
+                            break;
                         // user defined types
                         case CXCursor_TypeRef:    currentColor = COLOR_LIGHT_CYAN;  break;
                         default:                  currentColor = COLOR_WHITE;       break;
@@ -505,12 +537,15 @@ int main(int argc, char const *argv[])
 
                 currentPos++;
             }
+
+            printf(COLOR_NC);
         }
 
-        printf("\n"COLOR_NC);
+        printf("\n");
         clang_disposeTokens(translationUnit, tokens, numTokens);
         free(cursors);
         printf("-------------\n\n");
+        break;
     }
 
     clang_disposeTranslationUnit(translationUnit);
@@ -518,63 +553,3 @@ int main(int argc, char const *argv[])
 
     return EXIT_SUCCESS;
 }
-
-
-#if 0
-int main(int argc, char *argv[])
-{
-  CXString string;
-  CXIndex index = clang_createIndex(0, 0);
-  CXTranslationUnit tu = clang_parseTranslationUnit(index, 0, (const char * const *)argv, argc, 0, 0, CXTranslationUnit_None);
-
-  for(unsigned i = 0, n = clang_getNumDiagnostics(tu); i != n; i++)
-  {
-    CXDiagnostic diag = clang_getDiagnostic(tu, i);
-
-    printf("Diagnostic:\n");
-    string = clang_formatDiagnostic(diag, clang_defaultDiagnosticDisplayOptions());
-    fprintf(stderr, "%s\n", clang_getCString(string));
-    clang_disposeString(string);
-
-    // core diagnostic information
-    printf("Core diagnostic information:\n");
-    string = clang_getDiagnosticSpelling(diag);
-    fprintf(stderr, "%s\n", clang_getCString(string));
-    clang_disposeString(string);
-    // clang_getDiagnosticSeverity(diag);
-    // clang_getDiagnosticLocation(diag);
-
-    // fix it
-    printf("Fixit:\n");
-    for(unsigned j = 0, nfixit = clang_getDiagnosticNumFixIts(diag); j < nfixit; j++)
-    {
-      CXSourceRange range;
-      string = clang_getDiagnosticFixIt(diag, j, &range);
-      fprintf(stderr, "%s\n", clang_getCString(string));
-      clang_disposeString(string);
-    }
-
-    printf("\n");
-  }
-
-  // cursors
-  unsigned line = 13;
-  unsigned column = 7;
-  CXFile file = clang_getFile(tu, "test_a.c");
-  CXSourceLocation loc = clang_getLocation(tu, file, line, column);
-  CXCursor cursor = clang_getCursor(tu, loc);
-  printf("Unified Symbol Resolution:\n");
-  string = clang_getCursorUSR(cursor);
-  fprintf(stderr, "%s\n", clang_getCString(string));
-  clang_disposeString(string);
-
-  // syntax highlighting
-  // clang_tokenize(...);
-  // clang_annotateTokens(...);
-
-  clang_disposeTranslationUnit(tu);
-  clang_disposeIndex(index);
-
-  return 0;
-}
-#endif

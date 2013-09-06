@@ -8,7 +8,6 @@ typedef struct pwet
     float pwet_b;   /// \brief this field is crap
 } s_pwet;
 
-
 /// \brief This function sucks
 int my_func(char my_a, int my_b)
 {
@@ -16,7 +15,6 @@ int my_func(char my_a, int my_b)
 
     return my_a + my_b;
 }
-
 
 int main(int argc, char const *argv[])
 {
