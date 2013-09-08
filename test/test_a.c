@@ -1,29 +1,46 @@
 #include <stdio.h>
-// #include <../abc.h>
+#define INIT_VAL(x)    (2 * (x))
 
 /// \brief This structure is garbage
 typedef struct pwet
 {
-    int pwet_a;     /// \brief this field is useless
-    float pwet_b;   /// \brief this field is crap
+    union
+    {
+        int pwet_a;         /// \brief this field is useless
+        float pwet_b;       /// \brief this field is crap
+    };
+    struct pwet *me;    /// \brief face it, this is stupid
 } s_pwet;
 
-/// \brief This function sucks
-int my_func(char my_a, int my_b)
+static const int my_func(char my_a, int *my_b, s_pwet *p);
+
+enum my_enum
+{
+    ENUM_START,
+    ENUMM_1 = 10,
+    ENUM_END
+};
+
+/*
+    Multi
+    ligne
+    comment
+*/
+const int my_func(char my_a, int *my_b, s_pwet *p)
 {
     printf("%s %d %f", "This is a string literal", 42, 66.6F);
-
-    return my_a + my_b;
+    return my_a + *my_b;
 }
 
 int main(int argc, char const *argv[])
 {
-    char my_char;
-    int my_int;
+    static int my_int = INIT_VAL(0) + sizeof(s_pwet);
+    struct pwet my_pwet2;
+    const char my_char;
     s_pwet my_pwet;
 
     for(my_int = 0; my_int < 30; my_int++)
-        my_func(my_char, my_int);
+        my_func(my_char, my_int, &my_pwet);
 
     while(my_int--)
     {
@@ -31,5 +48,8 @@ int main(int argc, char const *argv[])
         my_pwet.pwet_b = my_int * 0.1F;
     }
 
-	return 0;
+    goto end;
+    end:
+
+    return 0;
 }

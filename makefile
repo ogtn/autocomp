@@ -1,15 +1,16 @@
 CC=clang
 
-CWARN=-Wall -Wextra -fno-common -Wdeclaration-after-statement
--Wformat=2 -Winit-self -Winline -Wpacked -Wp,-D_FORTIFY_SOURCE=2 \
--Wpointer-arith -Wlarger-than-65500 -Wmissing-declarations \
--Wmissing-format-attribute -Wmissing-noreturn -Wmissing-prototypes \
--Wnested-externs -Wold-style-definition -Wredundant-decls \
--Wsign-compare -Wstrict-aliasing=2 -Wstrict-prototypes -Wswitch \
--Wundef -Wunreachable-code -Wwrite-strings -Wconversion \
--Werror=implicit-function-declaration -Wenum-compare \
--Wno-typedef-redefinition -Wparentheses\
--ansi -pedantic -pedantic-errors
+CWARN=-Wall -Wextra -fno-common -Wdeclaration-after-statement \
+-Wno-unused-variable -Wno-unused-parameter
+# -Wformat=2 -Winit-self -Winline -Wpacked -Wp,-D_FORTIFY_SOURCE=2 \
+# -Wpointer-arith -Wlarger-than-65500 -Wmissing-declarations \
+# -Wmissing-format-attribute -Wmissing-noreturn -Wmissing-prototypes \
+# -Wnested-externs -Wold-style-definition -Wredundant-decls \
+# -Wsign-compare -Wstrict-aliasing=2 -Wstrict-prototypes -Wswitch \
+# -Wundef -Wunreachable-code -Wwrite-strings -Wconversion \
+# -Werror=implicit-function-declaration -Wenum-compare \
+# -Wno-typedef-redefinition -Wparentheses\
+# -ansi -pedantic -pedantic-errors
 
 # debug by default
 ifdef RELEASE

@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include <sys/siginfo.h>
 #include "my_header.h"
+#include <sys/siginfo.h>
 
 #if 0
     static const double DBL = 11.22;

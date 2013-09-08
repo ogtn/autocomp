@@ -4,6 +4,50 @@
 		"selected_items":
 		[
 			[
+				"token",
+				"tokenKind"
+			],
+			[
+				"COLOR_L",
+				"COLOR_LIGHT_BLUE"
+			],
+			[
+				"COLOR_G",
+				"COLOR_GREEN"
+			],
+			[
+				"color",
+				"COLOR_LIGHT_GREEN"
+			],
+			[
+				"COLOR_B",
+				"COLOR_BROWN"
+			],
+			[
+				"COLOR",
+				"COLOR_LIGHT_CYAN"
+			],
+			[
+				"curr",
+				"currentLine"
+			],
+			[
+				"COLO",
+				"COLOR_YELLOW"
+			],
+			[
+				"COLOR_",
+				"COLOR_LIGHT_RED"
+			],
+			[
+				"clan",
+				"clang_disposeString"
+			],
+			[
+				"CX",
+				"CXString"
+			],
+			[
 				"rect",
 				"rectangle"
 			],
@@ -172,19 +216,50 @@
 	"buffers":
 	[
 		{
-			"file": "makefile",
+			"file": "/home/mouleman/prog/clang/tools/c-index-test/c-index-test.c",
 			"settings":
 			{
-				"buffer_size": 719,
-				"line_ending": "Unix",
-				"name": "CC=clang -Wno-typedef-redefinition -Wparentheses"
+				"buffer_size": 126156,
+				"line_ending": "Unix"
 			}
 		},
 		{
-			"file": "todo",
+			"file": "/home/mouleman/prog/clang/include/clang-c/Index.h",
 			"settings":
 			{
-				"buffer_size": 0,
+				"buffer_size": 192350,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "src/clang_dev.c",
+			"settings":
+			{
+				"buffer_size": 21097,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "makefile",
+			"settings":
+			{
+				"buffer_size": 873,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "test/test_a.c",
+			"settings":
+			{
+				"buffer_size": 666,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "test/preproc.c",
+			"settings":
+			{
+				"buffer_size": 307,
 				"line_ending": "Unix"
 			}
 		}
@@ -192,7 +267,7 @@
 	"build_system": "Packages/Makefile/Make.sublime-build",
 	"command_palette":
 	{
-		"height": 392.0,
+		"height": 54.0,
 		"selected_items":
 		[
 			[
@@ -272,7 +347,7 @@
 				"Preferences: Browse Packages"
 			]
 		],
-		"width": 449.0
+		"width": 404.0
 	},
 	"console":
 	{
@@ -292,6 +367,15 @@
 	},
 	"file_history":
 	[
+		"/tmp/cursorkindList",
+		"/home/mouleman/prog/autocomp/clang_dev.sublime-project",
+		"/tmp/cursorkind",
+		"/home/mouleman/prog/autocomp/bin/.gitignore",
+		"/home/mouleman/prog/autocomp/src/clang_dev.c",
+		"/home/mouleman/prog/autocomp/makefile",
+		"/home/mouleman/prog/autocomp/test/test_a.c",
+		"/usr/include/clang-c/Index.h",
+		"/home/mouleman/prog/autocomp/todo",
 		"/home/og/remote/194_10_62_64/home/olivier/sirius2/dev/psgi/src/todo",
 		"/home/og/.config/sublime-text-3/Packages/SublimeClang/SublimeClang.sublime-settings",
 		"/home/og/dev/ome/OpenMe/trunk/OpenMe/src/scene.c",
@@ -403,6 +487,45 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"stmt",
+			"CXIndex",
+			"CXIdxObjCCategoryDeclInfo",
+			"CXIdxObjCContainerDeclInfo",
+			"CXIdxDeclInfo",
+			"CXIdxEntityInfo",
+			"CXIdxEntityKind",
+			"CXCurso",
+			"dire",
+			"inc",
+			"cpp",
+			"pr",
+			"COLOR_BLUE",
+			"iden",
+			"fun",
+			"def",
+			"liter",
+			"char",
+			"esca",
+			"liter",
+			"nat",
+			"type",
+			"int",
+			"cursorKind",
+			"CXCursor",
+			"CXCursorKind",
+			"enum",
+			"CXTUResourceUsageKind",
+			"enum",
+			"CXSourceRange",
+			"CXRange",
+			"CXToken",
+			"CXIdxEntityKind",
+			"\n ",
+			"printf",
+			"\");\n",
+			"unsigned",
+			"Diag",
+			"TU",
 			"${project_path:}",
 			"-",
 			"^-",
@@ -491,46 +614,7 @@
 			"int",
 			"nb_echec",
 			"NULL",
-			"XESYST_CreeHorodate",
-			"XESYST",
-			"XESYST_CreeHorodate",
-			"attrib",
-			"nb_echec",
-			"telecharge_flux_xml",
-			"nb_echec",
-			"version",
-			"calcule_id_evt",
-			"free",
-			"fin",
-			"debut",
-			"attrib",
-			"comment",
-			"NULL",
-			"T_XIXML_XMLNodes",
-			"const",
-			"corres",
-			"troncons",
-			"text",
-			"evts",
-			"T_SGI_CLTEVT_EVT",
-			"T_SGI_CLTEVT_TRC_CORRES",
-			"cherche",
-			"no_sgi_clttra",
-			"mp_gen",
-			"SEMCLTTRA",
-			"SEMCLTEVT",
-			"SRCMAIN",
-			"SSY_PARSER",
-			"atte",
-			"atten",
-			"break",
-			"pf_ListeTroncons",
-			"pf_Lis",
-			"sgi_tri_corres",
-			" *",
-			"mp_local",
-			"		",
-			" 					"
+			"XESYST_CreeHorodate"
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -564,25 +648,144 @@
 			[
 				{
 					"buffer": 0,
-					"file": "makefile",
+					"file": "/home/mouleman/prog/clang/tools/c-index-test/c-index-test.c",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 719,
+						"buffer_size": 126156,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								719,
-								719
+								123581,
+								123581
 							]
 						],
 						"settings":
 						{
-							"auto_name": "CC=clang -Wno-typedef-redefinition -Wparentheses",
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 65637.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "/home/mouleman/prog/clang/include/clang-c/Index.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 192350,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								61600,
+								61600
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 29294.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "src/clang_dev.c",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 21097,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								19303,
+								19303
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 8511.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "makefile",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 873,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								74,
+								74
+							]
+						],
+						"settings":
+						{
 							"syntax": "Packages/Makefile/Makefile.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 4,
+					"file": "test/test_a.c",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 666,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								431,
+								431
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
 						"translation.y": 0.0,
@@ -591,26 +794,25 @@
 					"type": "text"
 				},
 				{
-					"buffer": 1,
-					"file": "todo",
+					"buffer": 5,
+					"file": "test/preproc.c",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 0,
+						"buffer_size": 307,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								0,
-								0
+								306,
+								306
 							]
 						],
 						"settings":
 						{
-							"auto_name": "",
-							"syntax": "Packages/PlainTasks/PlainTasks.tmLanguage"
+							"syntax": "Packages/C++/C++.tmLanguage"
 						},
 						"translation.x": 0.0,
 						"translation.y": 0.0,
@@ -638,11 +840,18 @@
 				0,
 				1,
 				1
+			],
+			[
+				1,
+				0,
+				2,
+				1
 			]
 		],
 		"cols":
 		[
 			0.0,
+			0.634338588074,
 			1.0
 		],
 		"rows":
@@ -654,7 +863,7 @@
 	"menu_visible": true,
 	"output.exec":
 	{
-		"height": 132.0
+		"height": 216.0
 	},
 	"project": "clang_dev.sublime-project",
 	"replace":
@@ -667,6 +876,18 @@
 		"height": 0.0,
 		"selected_items":
 		[
+			[
+				"pr",
+				"test/preproc.c"
+			],
+			[
+				"t",
+				"todo"
+			],
+			[
+				"",
+				"todo"
+			],
 			[
 				"ma",
 				"Projects/Makefile"
@@ -805,7 +1026,7 @@
 	"show_open_files": false,
 	"show_tabs": true,
 	"side_bar_visible": true,
-	"side_bar_width": 150.0,
+	"side_bar_width": 221.0,
 	"status_bar_visible": false,
 	"template_settings":
 	{
