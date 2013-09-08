@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdio.h>
 #define INIT_VAL(x)    (2 * (x))
 
@@ -14,12 +15,12 @@ typedef struct pwet
 
 static const int my_func(char my_a, int *my_b, s_pwet *p);
 
-enum my_enum
+typedef enum my_enum
 {
     ENUM_START,
     ENUMM_1 = 10,
     ENUM_END
-};
+} my_enum; //
 
 /*
     Multi
@@ -36,7 +37,7 @@ int main(int argc, char const *argv[])
 {
     static int my_int = INIT_VAL(0) + sizeof(s_pwet);
     struct pwet my_pwet2;
-    const char my_char;
+    const char my_char = 'c';
     s_pwet my_pwet;
 
     for(my_int = 0; my_int < 30; my_int++)

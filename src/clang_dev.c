@@ -201,7 +201,7 @@ void PrintDiagnostic(CXDiagnostic Diagnostic) {
 }
 
 
-enum CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
+enum CXChildVisitResult childVisitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
 {
     CXFile file = client_data;
     CXString cursorString, cursorKindString, USRString;
@@ -250,38 +250,40 @@ char nextNonBlank(const char *str)
     return *str;
 }
 
-
-int main(int argc, char const *argv[])
+void inclusionVisitor(CXFile includedFile, CXSourceLocation* location, 
+    unsigned include_len, CXClientData context)
 {
-    char cmdLine[64];
-    char fileName[64];
-    CXCodeCompleteResults *results = NULL;
-    CXTranslationUnit translationUnit = 0;
-    unsigned long long contexts;
-    unsigned completionOptions;
-    unsigned parsingOptions;
-    CXIndex index;
-    unsigned i, n;
-    int line, column;
-    // int first = 1;
+    CXString string = clang_getFileName(includedFile);
+    const char *fileName = clang_getCString(string);
 
-    // arguments
+    if(clang_Location_isFromMainFile(*location))
+        printf("Files included from %s:\n", fileName);
+    else
+        printf("\t%s %s\n", fileName, 
+            clang_Location_isInSystemHeader(*location)? "(system)" :"");
+
+    clang_disposeString(string);
+}
+
+
+CXTranslationUnit parse(CXIndex index, int argc, char **argv)
+{
+    CXTranslationUnit translationUnit;
+    unsigned parsingOptions;
+
+    parsingOptions = clang_defaultEditingTranslationUnitOptions();
+    parsingOptions |= CXTranslationUnit_CacheCompletionResults;
+    parsingOptions |= CXTranslationUnit_DetailedPreprocessingRecord;
+    parsingOptions |= CXTranslationUnit_IncludeBriefCommentsInCodeCompletion;
+    // parsingOptions |= CXTranslationUnit_SkipFunctionBodies;
+
+    // arguments checking
     if(argc < 2)
     {
         fprintf(stderr, "Missing arguments!\n");
-
-        return EXIT_FAILURE;
+        return NULL;
     }
 
-    // parsing
-    parsingOptions = clang_defaultEditingTranslationUnitOptions();
-    parsingOptions |= CXTranslationUnit_DetailedPreprocessingRecord;
-    parsingOptions |= CXTranslationUnit_CacheCompletionResults;
-    // parsingOptions |= CXTranslationUnit_SkipFunctionBodies;
-    parsingOptions |= CXTranslationUnit_IncludeBriefCommentsInCodeCompletion;
-
-    strcpy(fileName, argv[1]);
-    index = clang_createIndex(0, 1);
     translationUnit = clang_parseTranslationUnit(
         index, NULL, (const char * const *)argv, argc,
         NULL, // unsaved files
@@ -289,15 +291,425 @@ int main(int argc, char const *argv[])
         parsingOptions);
 
     if(translationUnit == NULL)
-    {
         fprintf(stderr, "Unable to load translation unit!\n");
-        return EXIT_FAILURE;
+
+    return translationUnit;
+}
+
+
+void printSyntaxHighlightedCode(const char *code, unsigned *currentPos, 
+    unsigned *currentLine, unsigned endOffsetToken, const char *currentColor)
+{
+    // flush blanks
+    while(isspace(code[*currentPos]))
+    {
+        if(code[*currentPos] == '\n')
+            printf("\n%04d:", (*currentLine)++);
+        else
+            printf("%c", code[*currentPos]);
+
+        (*currentPos)++;
     }
+
+    // apply token color
+    printf("%s", currentColor);
+
+    // print token
+    while(*currentPos < endOffsetToken)
+    {
+        if(code[*currentPos] == '\n')
+            printf("%s\n%04d:%s", COLOR_NC, (*currentLine)++, currentColor);
+        else
+            printf("%c", code[*currentPos]);
+
+        (*currentPos)++;
+    }
+
+    // apply default color
+    printf(COLOR_NC);
+
+    // flush blanks
+    while(isspace(code[*currentPos]))
+    {
+        if(code[*currentPos] == '\n')
+            printf("\n%04d:", (*currentLine)++);
+        else
+            printf("%c", code[*currentPos]);
+
+        (*currentPos)++;
+    }
+
+    printf(COLOR_NC);
+}
+
+
+typedef struct SyntaxHighlightingContext
+{
+    CXTranslationUnit translationUnit;
+    CXFile file;
+    
+    char *code;
+    unsigned int codeLen;
+    
+    unsigned int numTokens;
+    CXToken *tokens;
+    CXToken currentToken;
+    CXTokenKind tokenKind;
+    CXString tokenString;
+    unsigned int endOffsetToken;
+
+    CXCursor *cursors;
+    CXCursor currentCursor;
+    enum CXCursorKind cursorKind;
+    CXString cursorString;
+    CXString cursorKindString;
+} SyntaxHighlightingContext;
+
+
+void getTokenAndCursorInfo(SyntaxHighlightingContext *context)
+{
+    context->tokenKind = clang_getTokenKind(context->currentToken);
+    context->cursorKind = clang_getCursorKind(context->currentCursor);
+    CXSourceRange tokenRange = clang_getTokenExtent(context->translationUnit, context->currentToken);
+    CXSourceRange cursorRange = clang_getCursorExtent(context->currentCursor);
+    CXSourceLocation tokenStart = clang_getRangeStart(tokenRange);
+    CXSourceLocation tokenEnd = clang_getRangeEnd(tokenRange);
+    CXSourceLocation cursorStart = clang_getRangeStart(cursorRange);
+    CXSourceLocation cursorEnd = clang_getRangeEnd(cursorRange);
+    unsigned startOffsetToken;
+    clang_getSpellingLocation(tokenStart, context->file, NULL, NULL, &startOffsetToken);
+    clang_getSpellingLocation(tokenEnd, context->file, NULL, NULL, &context->endOffsetToken);
+    unsigned startOffsetCursor, endOffsetCursor;
+    clang_getSpellingLocation(cursorStart, context->file, NULL, NULL, &startOffsetCursor);
+    clang_getSpellingLocation(cursorEnd, context->file, NULL, NULL, &endOffsetCursor);
+
+    context->tokenString = clang_getTokenSpelling(context->translationUnit, context->currentToken);
+    context->cursorString = clang_getCursorSpelling(context->currentCursor);
+    context->cursorKindString = clang_getCursorKindSpelling(context->cursorKind);
+
+#if 0
+    printf("\ntoken: \"%s\" => [%d;%d] => %s(%d)\n", clang_getCString(context->tokenString),
+        startOffsetToken, context->endOffsetToken, cursorKindSpelling(context->tokenKind), context->tokenKind);
+
+    if(!clang_isInvalid(context->cursorKind))
+        printf("cursor: \"%s\" => [%d;%d] => %s(%d)\n", clang_getCString(context->cursorString),
+            startOffsetCursor, endOffsetCursor, clang_getCString(context->cursorKindString), context->cursorKind);
+    else
+        printf("No cursor!!!\n");
+#endif
+}
+
+
+void performTokenization(SyntaxHighlightingContext *context)
+{
+    CXSourceLocation loc_start, loc_end;
+    CXSourceRange range;
+
+    loc_start = clang_getLocation(context->translationUnit, context->file, 1, 1);
+    loc_end = clang_getLocationForOffset(context->translationUnit, context->file, context->codeLen);
+    range = clang_getRange(loc_start, loc_end);
+    clang_tokenize(context->translationUnit, range, &context->tokens, &context->numTokens);
+    context->cursors = malloc(sizeof(CXCursor) * context->numTokens);
+    clang_annotateTokens(context->translationUnit, context->tokens, context->numTokens, context->cursors);
+    printf("%d tokens found\n", context->numTokens);
+}
+
+
+void getCodeFromFile(SyntaxHighlightingContext *context, const char *fileName)
+{
+    FILE *file;
+
+    file = fopen(fileName, "r");
+    fseek(file, 0, SEEK_END);
+    context->codeLen = ftell(file);
+    rewind(file);
+    context->code = malloc(context->codeLen + 1);
+    fread(context->code, context->codeLen, 1, file);
+    context->code[context->codeLen] = '\0';
+    fclose(file);
+}
+
+
+void performSyntaxHighlighting(CXTranslationUnit translationUnit, const char *fileName)
+{
+    SyntaxHighlightingContext context = {};
+    unsigned int i;
+    unsigned currentPos = 0;
+    unsigned currentLine = 1;
+
+    context.translationUnit = translationUnit;
+    context.file = clang_getFile(translationUnit, fileName);
+
+    getCodeFromFile(&context, fileName);
+    performTokenization(&context);
+
+    printf("%s%04d:", COLOR_NC, currentLine++);
+
+    for(i = 0; i < context.numTokens; i++)
+    {
+        context.currentToken = context.tokens[i];
+        context.currentCursor = context.cursors[i];
+        getTokenAndCursorInfo(&context);
+
+        char *currentColor;
+        char nextChar = nextNonBlank(context.code + currentPos);
+        CXTokenKind tokenKind = context.tokenKind;
+        enum CXCursorKind cursorKind = context.cursorKind;
+        const char *tokenString = clang_getCString(context.tokenString);
+
+        // punctuation in proprocessor directives
+        if(tokenKind == CXToken_Punctuation)
+        {
+            if(cursorKind == CXCursor_InclusionDirective && strchr("<>/.\\-", nextChar))
+                currentColor = COLOR_BROWN;
+            else
+                currentColor = COLOR_WHITE;
+        }
+        else if(tokenKind == CXToken_Comment)
+            currentColor = COLOR_GREEN;
+        else if(cursorKind >= CXCursor_FirstInvalid && cursorKind <= CXCursor_LastInvalid && tokenKind == CXToken_Keyword)
+            currentColor = COLOR_RED;
+        else
+        {
+            switch(cursorKind)
+            {
+                case CXCursor_TypedefDecl:
+                    // typedef keyword
+                    if(tokenKind == CXToken_Keyword)
+                        currentColor = COLOR_LIGHT_BLUE;
+                    else // type created in a typedef
+                        currentColor = COLOR_LIGHT_PURPLE;
+                    break;
+
+                // enum/struct/union
+                case CXCursor_EnumDecl:
+                case CXCursor_UnionDecl:
+                case CXCursor_StructDecl:
+                    // built in types and enum/struct/union
+                    if(tokenKind == CXToken_Keyword)
+                        currentColor = COLOR_LIGHT_BLUE;
+                    // struct name
+                    else 
+                        currentColor = COLOR_LIGHT_PURPLE;
+                    break;
+
+                // struct/union fields
+                case CXCursor_FieldDecl:
+                    // keywords
+                    if(tokenKind == CXToken_Keyword)
+                        currentColor = COLOR_LIGHT_BLUE;
+                    // field name
+                    else 
+                        currentColor = COLOR_WHITE;
+                    break;
+
+                // variable declaration
+                case CXCursor_VarDecl:
+                    // built in types and enum/struct/union
+                    if(tokenKind == CXToken_Keyword)
+                        currentColor = COLOR_LIGHT_BLUE;
+                    else // variable name
+                        currentColor = COLOR_WHITE;
+                    break;
+
+                // static and const in variable declaration
+                case CXCursor_DeclStmt:
+                    currentColor = COLOR_RED;
+                    break;
+
+                // sizeof operator
+                case CXCursor_UnexposedExpr:
+                    if(tokenKind == CXToken_Keyword)
+                        currentColor = COLOR_RED;
+                    else
+                        currentColor = COLOR_WHITE;
+                    break;
+
+                // control statements
+                case CXCursor_CaseStmt:
+                case CXCursor_SwitchStmt:
+                case CXCursor_WhileStmt:
+                case CXCursor_DoStmt:
+                case CXCursor_ForStmt:
+                case CXCursor_GotoStmt:
+                case CXCursor_ContinueStmt:
+                case CXCursor_BreakStmt:
+                case CXCursor_ReturnStmt:
+                case CXCursor_IfStmt:
+                case CXCursor_DefaultStmt:
+                    currentColor = COLOR_RED;
+                    break;
+
+                // num literals
+                case CXCursor_IntegerLiteral:
+                case CXCursor_FloatingLiteral:
+                    currentColor = COLOR_PURPLE;
+                    break;
+
+                // string literals
+                case CXCursor_CharacterLiteral:
+                case CXCursor_StringLiteral:
+                    currentColor = COLOR_BROWN;
+                    break;
+
+                // parameter declaration
+                case CXCursor_ParmDecl:
+                    if(tokenKind == CXToken_Keyword)
+                        currentColor = COLOR_LIGHT_BLUE;
+                    else
+                        currentColor = COLOR_WHITE;
+                    break;
+
+                // function declaration
+                case CXCursor_FunctionDecl:
+                    // 
+                    if(tokenKind == CXToken_Keyword)
+                        currentColor = COLOR_LIGHT_BLUE;
+                    else
+                        currentColor = COLOR_LIGHT_GREEN;
+                    break;
+
+                case CXCursor_DeclRefExpr:
+                    // function calls
+                    if(clang_getCursorType(context.currentCursor).kind == CXType_FunctionProto)
+                    {
+                        CXCursor definition = clang_getCursorDefinition(context.currentCursor);
+
+                        if(!clang_Cursor_isNull(definition))
+                        {
+                            CXSourceRange defRange = clang_getCursorExtent(definition);
+                            CXSourceLocation defLocation = clang_getRangeStart(defRange);
+                            unsigned line;
+                            clang_getSpellingLocation(defLocation, context.file, &line, NULL, NULL);
+
+                            printf("// function %s() defined line %d\n", tokenString, line);
+                        }
+                        currentColor = COLOR_LIGHT_BLUE;
+                    }
+                    else // variables and parameters references
+                        currentColor = COLOR_WHITE;
+                    break;
+
+                case CXCursor_MacroExpansion:
+                        currentColor = COLOR_LIGHT_BLUE;
+                    break;
+
+                // #if #else #endif #define
+                case CXCursor_PreprocessingDirective:
+                    if(tokenKind == CXToken_Keyword)
+                        currentColor = COLOR_RED;
+                    else if(tokenKind == CXToken_Literal)
+                        currentColor = COLOR_PURPLE;
+                    else if(tokenKind == CXToken_Identifier &&
+                        !strcmp(tokenString, "define"))
+                        currentColor = COLOR_RED;
+                    else if(tokenKind == CXToken_Identifier &&
+                        !strcmp(tokenString, "endif"))
+                        currentColor = COLOR_RED;
+                    else
+                        currentColor = COLOR_WHITE;
+                    break;
+
+                // macro definition
+                case CXCursor_MacroDefinition:
+                    if(tokenKind == CXToken_Literal)
+                    {
+                        if(strchr(tokenString, '"'))
+                            currentColor = COLOR_BROWN;
+                        else
+                            currentColor = COLOR_PURPLE;
+                    }
+                    else
+                        currentColor = COLOR_WHITE;
+                    break;
+
+                // includes
+                case CXCursor_InclusionDirective:
+                    if(tokenKind == CXToken_Literal)
+                        currentColor = COLOR_BROWN;
+                    else if(tokenKind == CXToken_Identifier)
+                    {
+                        if(!strcmp(tokenString, "include"))
+                            currentColor = COLOR_RED;
+                        else
+                            currentColor = COLOR_BROWN;
+                    }
+                    else
+                        currentColor = COLOR_WHITE;
+                    break;
+                    
+                // user defined types
+                case CXCursor_TypeRef:
+                    // if(clang_getCursorType(cursors[i]).kind)
+                    currentColor = COLOR_LIGHT_PURPLE;
+                    break;
+
+                default:
+                    currentColor = COLOR_WHITE;
+            }
+        }
+
+#if 0
+        enum CXAvailabilityKind availability = clang_getCursorAvailability(cursors[i]);
+
+        switch(availability)
+        {
+            case CXAvailability_Available:
+                currentColor = COLOR_WHITE;
+                break;
+            case CXAvailability_Deprecated:
+                currentColor = COLOR_YELLOW;
+                break;
+            case CXAvailability_NotAvailable:
+                currentColor = COLOR_GRAY;
+                break;
+            case CXAvailability_NotAccessible:
+                currentColor = COLOR_RED;
+                break;
+        }
+#endif
+        printSyntaxHighlightedCode(context.code, &currentPos, &currentLine, context.endOffsetToken, currentColor);
+        clang_disposeString(context.tokenString);
+        clang_disposeString(context.cursorString);
+        clang_disposeString(context.cursorKindString);
+    }
+
+    printf("\n");
+    clang_disposeTokens(context.translationUnit, context.tokens, context.numTokens);
+    free(context.cursors);
+    free(context.code);
+    printf("-------------\n");
+}
+
+
+    // CXCursor cursor = clang_getTranslationUnitCursor(translationUnit);
+    // clang_visitChildren(cursor, childVisitor, file);
+    // test clang_indexSourceFile()
+
+
+int main(int argc, char **argv)
+{
+    char cmdLine[64];
+    char fileName[64];
+    CXCodeCompleteResults *results = NULL;
+    CXTranslationUnit translationUnit = NULL;
+    unsigned long long contexts;
+    unsigned completionOptions;
+    CXIndex index;
+    unsigned i, n;
+    int line, column;
+    // int first = 1;
+
+    index = clang_createIndex(0, 1);
+    translationUnit = parse(index, argc, argv);
+    strcpy(fileName, argv[1]);
+
+    clang_getInclusions(translationUnit, inclusionVisitor, NULL);
+    performSyntaxHighlighting(translationUnit, fileName);
 
     while(1)
     {
         int scanRes;
-#if 0
         printf("Choose where to perform autocompletion (line column):\n> ");
 
         if(fgets(cmdLine, sizeof cmdLine, stdin) == NULL)
@@ -398,316 +810,7 @@ int main(int argc, char const *argv[])
         contexts = clang_codeCompleteGetContexts(results);
         print_completion_contexts(contexts, stdout);
         clang_disposeCodeCompleteResults(results);
-#endif
-        // cursors
-        puts("=================");
-        CXFile file = clang_getFile(translationUnit,fileName);
-        CXCursor cursor = clang_getTranslationUnitCursor(translationUnit);
-        // clang_visitChildren(cursor, visitor, file);
 
-        FILE *cfile = fopen(fileName, "r");
-        fseek(cfile, 0, SEEK_END);
-        int code_len = ftell(cfile);
-        rewind(cfile);
-        char *code = malloc(code_len + 1);
-        fread(code, code_len, 1, cfile);
-        code[code_len] = '\0';
-
-        CXSourceLocation loc_start = clang_getLocation(translationUnit, file, 1, 1);
-        CXSourceLocation loc_end = clang_getLocationForOffset(translationUnit, file, code_len);
-        CXSourceRange range = clang_getRange(loc_start, loc_end);
-        CXToken *tokens;
-        unsigned numTokens;
-        clang_tokenize(translationUnit, range, &tokens, &numTokens);
-        CXCursor *cursors = malloc(sizeof(CXCursor) * numTokens);
-        clang_annotateTokens(translationUnit, tokens, numTokens, cursors);
-
-        unsigned currentPos = 0;
-        unsigned currentLine = 1;
-        printf("\n%s%04d:", COLOR_NC, currentLine++);
-
-        for(i = 0; i < numTokens; i++)
-        {
-            CXString tokenString, cursorString, cursorKindString;
-            CXTokenKind tokenKind = clang_getTokenKind(tokens[i]);
-            enum CXCursorKind cursorKind = clang_getCursorKind(cursors[i]);
-            CXSourceRange tokenRange = clang_getTokenExtent(translationUnit, tokens[i]);
-            CXSourceRange cursorRange = clang_getCursorExtent(cursors[i]);
-            CXSourceLocation tokenStart = clang_getRangeStart(tokenRange);
-            CXSourceLocation tokenEnd = clang_getRangeEnd(tokenRange);
-            CXSourceLocation cursorStart = clang_getRangeStart(cursorRange);
-            CXSourceLocation cursorEnd = clang_getRangeEnd(cursorRange);
-            unsigned startOffsetToken, endOffsetToken;
-            clang_getSpellingLocation(tokenStart, file, NULL, NULL, &startOffsetToken);
-            clang_getSpellingLocation(tokenEnd, file, NULL, NULL, &endOffsetToken);
-            unsigned startOffsetCursor, endOffsetCursor;
-            clang_getSpellingLocation(cursorStart, file, NULL, NULL, &startOffsetCursor);
-            clang_getSpellingLocation(cursorEnd, file, NULL, NULL, &endOffsetCursor);
-
-            tokenString = clang_getTokenSpelling(translationUnit, tokens[i]);
-            cursorString = clang_getCursorSpelling(cursors[i]);
-            cursorKindString = clang_getCursorKindSpelling(cursorKind);
-
-#if 0
-            printf("\ntoken: \"%s\" => [%d;%d] => %s(%d)\n", clang_getCString(tokenString),
-                startOffsetToken, endOffsetToken, cursorKindSpelling(tokenKind), tokenKind);
-
-            if(!clang_isInvalid(cursorKind))
-                printf("cursor: \"%s\" => [%d;%d] => %s(%d)\n", clang_getCString(cursorString),
-                    startOffsetCursor, endOffsetCursor, clang_getCString(cursorKindString), cursorKind);
-            else
-                printf("No cursor!!!\n");
-#endif
-
-            char *currentColor;
-            char nextChar = nextNonBlank(code + currentPos);
-            
-            // punctuation in proprocessor directives
-            if(tokenKind == CXToken_Punctuation)
-            {
-                if(cursorKind == CXCursor_InclusionDirective && strchr("<>/.\\", nextChar))
-                    currentColor = COLOR_BROWN;
-                else
-                    currentColor = COLOR_WHITE;
-            }
-            else if(tokenKind == CXToken_Comment)
-                currentColor = COLOR_GREEN;
-            else if(cursorKind >= CXCursor_FirstInvalid && cursorKind <= CXCursor_LastInvalid && tokenKind == CXToken_Keyword)
-                currentColor = COLOR_RED;
-            else
-            {                
-                switch(cursorKind)
-                {
-                    // type created in a typedef
-                    case CXCursor_TypedefDecl:
-                        currentColor = COLOR_LIGHT_PURPLE;
-                    break;
-
-                    // enum/struct/union
-                    case CXCursor_EnumDecl:
-                    case CXCursor_UnionDecl:
-                    case CXCursor_StructDecl:
-                    case CXCursor_FieldDecl:
-                        // built in types and enum/struct/union
-                        if(tokenKind == CXToken_Keyword)
-                            currentColor = COLOR_LIGHT_BLUE;
-                        else // struct and field name 
-                            currentColor = COLOR_WHITE;
-                    break;
-
-                    // variable declaration
-                    case CXCursor_VarDecl:
-                        // built in types and enum/struct/union
-                        if(tokenKind == CXToken_Keyword)
-                            currentColor = COLOR_LIGHT_BLUE;
-                        else // variable name
-                            currentColor = COLOR_WHITE;
-                        break;
-
-                    // static and const in variable declaration
-                    case CXCursor_DeclStmt:
-                        currentColor = COLOR_RED;
-                    break;
-
-                    // sizeof operator
-                    case CXCursor_UnexposedExpr:
-                        if(tokenKind == CXToken_Keyword)
-                            currentColor = COLOR_RED;
-                        else
-                            currentColor = COLOR_WHITE;
-                    break;
-
-                    // control statements
-                    case CXCursor_CaseStmt:
-                    case CXCursor_SwitchStmt:
-                    case CXCursor_WhileStmt:
-                    case CXCursor_DoStmt:
-                    case CXCursor_ForStmt:
-                    case CXCursor_GotoStmt:
-                    case CXCursor_ContinueStmt:
-                    case CXCursor_BreakStmt:
-                    case CXCursor_ReturnStmt:
-                        currentColor = COLOR_RED;
-                        break;
-
-                    // num literals
-                    case CXCursor_IntegerLiteral:
-                    case CXCursor_FloatingLiteral:
-                        currentColor = COLOR_PURPLE;
-                        break;
-
-                    // string literals
-                    case CXCursor_CharacterLiteral:
-                    case CXCursor_StringLiteral:
-                        currentColor = COLOR_BROWN;
-                        break;
-
-                    // parameter declaration
-                    case CXCursor_ParmDecl:
-                        if(tokenKind == CXToken_Keyword)
-                            currentColor = COLOR_LIGHT_BLUE;
-                        else
-                            currentColor = COLOR_WHITE;
-                        break;
-
-                    // function declaration
-                    case CXCursor_FunctionDecl:
-                        // 
-                        if(tokenKind == CXToken_Keyword)
-                            currentColor = COLOR_LIGHT_BLUE;
-                        else
-                            currentColor = COLOR_LIGHT_GREEN;
-                        break;
-
-                    case CXCursor_DeclRefExpr:
-                        // function calls
-                        if(clang_getCursorType(cursors[i]).kind == CXType_FunctionProto)
-                        {
-                            CXCursor definition = clang_getCursorDefinition(cursors[i]);
-
-                            if(!clang_Cursor_isNull(definition))
-                            {
-                                CXSourceRange defRange = clang_getCursorExtent(definition);
-                                CXSourceLocation defLocation = clang_getRangeStart(defRange);
-                                unsigned line;
-                                clang_getSpellingLocation(defLocation, file, &line, NULL, NULL);
-
-                                printf("// fonction %s() definie à la ligne %d\n", clang_getCString(tokenString), line);
-                            }
-                            currentColor = COLOR_LIGHT_BLUE;
-                        }
-                        else // variables and parameters references
-                            currentColor = COLOR_WHITE;
-                        break;
-
-                    case CXCursor_MacroExpansion:
-                        currentColor = COLOR_LIGHT_BLUE;
-                    break;
-
-                    // #if #else #endif #define
-                    case CXCursor_PreprocessingDirective:
-                        if(tokenKind == CXToken_Keyword)
-                            currentColor = COLOR_RED;
-                        else if(tokenKind == CXToken_Literal)
-                            currentColor = COLOR_PURPLE;
-                        else if(tokenKind == CXToken_Identifier &&
-                            !strcmp(clang_getCString(tokenString), "define"))
-                            currentColor = COLOR_RED;
-                        else if(tokenKind == CXToken_Identifier &&
-                            !strcmp(clang_getCString(tokenString), "endif"))
-                            currentColor = COLOR_RED;
-                        else
-                            currentColor = COLOR_WHITE;
-                        break;
-
-                    // macro definition
-                    case CXCursor_MacroDefinition:
-                        if(tokenKind == CXToken_Literal)
-                        {
-                            if(strchr(clang_getCString(tokenString), '"'))
-                                currentColor = COLOR_BROWN;
-                            else
-                                currentColor = COLOR_PURPLE;
-                        }
-                        else
-                            currentColor = COLOR_WHITE;
-                        break;
-
-                    // includes
-                    case CXCursor_InclusionDirective:
-                        if(tokenKind == CXToken_Literal)
-                            currentColor = COLOR_BROWN;
-                        else if(tokenKind == CXToken_Identifier)
-                        {
-                            if(!strcmp(clang_getCString(tokenString), "include"))
-                                currentColor = COLOR_RED;
-                            else
-                                currentColor = COLOR_BROWN;
-                        }
-                        else
-                            currentColor = COLOR_WHITE;
-                        break;
-                        
-                    // user defined types
-                    case CXCursor_TypeRef:
-                        if(clang_getCursorType(cursors[i]).kind)
-                            currentColor = COLOR_LIGHT_PURPLE;
-                        break;
-
-                    default:
-                        currentColor = COLOR_WHITE;
-                }
-            }
-
-#if 0
-            enum CXAvailabilityKind availability = clang_getCursorAvailability(cursors[i]);
-
-            switch(availability)
-            {
-                case CXAvailability_Available:
-                    currentColor = COLOR_WHITE;
-                    break;
-                case CXAvailability_Deprecated:
-                    currentColor = COLOR_YELLOW;
-                    break;
-                case CXAvailability_NotAvailable:
-                    currentColor = COLOR_GRAY;
-                    break;
-                case CXAvailability_NotAccessible:
-                    currentColor = COLOR_RED;
-                    break;
-            }
-#endif
-            // flush blanks
-            while(isspace(code[currentPos]))
-            {
-                if(code[currentPos] == '\n')
-                    printf("\n%04d:", currentLine++);
-                else
-                    printf("%c", code[currentPos]);
-
-                currentPos++;
-            }
-
-            // apply token color
-            printf("%s", currentColor);
-
-            // print token
-            while(currentPos < endOffsetToken)
-            {
-                if(code[currentPos] == '\n')
-                    printf("%s\n%04d:%s", COLOR_NC, currentLine++, currentColor);
-                else
-                    printf("%c", code[currentPos]);
-
-                currentPos++;
-            }
-
-            // apply default color
-            printf(COLOR_NC);
-
-            // flush blanks
-            while(isspace(code[currentPos]))
-            {
-                if(code[currentPos] == '\n')
-                    printf("\n%04d:", currentLine++);
-                else
-                    printf("%c", code[currentPos]);
-
-                currentPos++;
-            }
-
-            printf(COLOR_NC);
-
-            clang_disposeString(tokenString);
-            clang_disposeString(cursorString);
-            clang_disposeString(cursorKindString);
-        }
-
-        printf("\n");
-        clang_disposeTokens(translationUnit, tokens, numTokens);
-        free(cursors);
-        printf("-------------\n");
         break;
     }
 
